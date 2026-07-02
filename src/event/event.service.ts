@@ -7,7 +7,7 @@ import { ValidateSessionDto } from './dto/validate.session.dto';
 
 @Injectable()
 export class EventService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService) { }
 
   async createEvent(createEventDto: CreateEventDto) {
     const { name, adminId } = createEventDto;
@@ -15,9 +15,9 @@ export class EventService {
     const event = await this.prisma.eventInfo.create({
       data: {
         name,
-        creator:{
-            connect: {id: adminId}
-        } 
+        creator: {
+          connect: { id: adminId }
+        }
       },
     });
 
@@ -32,78 +32,101 @@ export class EventService {
   }
 
   async getAllEvents() {
-  const events = await this.prisma.eventInfo.findMany({
-    include: {
-      creator: {
-        select: {
-          id: true,
-          email: true, 
+    const events = await this.prisma.eventInfo.findMany({
+      include: {
+        creator: {
+          select: {
+            id: true,
+            email: true,
+          },
         },
       },
-    },
-    orderBy: {
-      id: 'desc',
-    },
-  });
+      orderBy: {
+        id: 'desc',
+      },
+    });
 
-  return events;
-}
-
-async updateEvent(id: string, updateEventDto: UpdateEventDto) {
-  const existingEvent = await this.prisma.eventInfo.findUnique({
-    where: { id },
-  });
-
-  if (!existingEvent) {
-    throw new NotFoundException('Event not found');
+    return events;
   }
 
-  const updatedEvent = await this.prisma.eventInfo.update({
-    where: { id },
-    data: {
-      name: updateEventDto.name,
-    },
-  });
+  async getEventById(id: string) {
+    const event = await this.prisma.eventInfo.findUnique({
+      where: { id },
+      include: {
+        creator: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+    });
 
-  return updatedEvent;
-}
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
 
-async deleteEvent(id: string) {
-  const existingEvent = await this.prisma.eventInfo.findUnique({
-    where: { id },
-  });
-
-  if (!existingEvent) {
-    throw new NotFoundException('Event not found');
+    return {
+      message: 'Event retrieved successfully',
+      event,
+    };
   }
 
-  await this.prisma.eventInfo.delete({
-    where: { id },
-  });
+  async updateEvent(id: string, updateEventDto: UpdateEventDto) {
+    const existingEvent = await this.prisma.eventInfo.findUnique({
+      where: { id },
+    });
 
-  return { message: 'Event deleted successfully' };
-}
+    if (!existingEvent) {
+      throw new NotFoundException('Event not found');
+    }
 
+    const updatedEvent = await this.prisma.eventInfo.update({
+      where: { id },
+      data: {
+        name: updateEventDto.name,
+      },
+    });
 
-async validateSession(dto: ValidateSessionDto) {
-  const { adminId, eventId } = dto;
-
-  const event = await this.prisma.eventInfo.findFirst({
-    where: {
-      id: eventId,
-      createdBy: adminId,
-    },
-  });
-
-  if (!event) {
-    throw new NotFoundException(
-      'Admin or Event not found'
-    );
+    return updatedEvent;
   }
 
-  return {
-    message: 'Session validated',
-    event,
-  };
-}
+  async deleteEvent(id: string) {
+    const existingEvent = await this.prisma.eventInfo.findUnique({
+      where: { id },
+    });
+
+    if (!existingEvent) {
+      throw new NotFoundException('Event not found');
+    }
+
+    await this.prisma.eventInfo.delete({
+      where: { id },
+    });
+
+    return { message: 'Event deleted successfully' };
+  }
+
+
+  async validateSession(dto: ValidateSessionDto) {
+    const { adminId, eventId } = dto;
+
+    const event = await this.prisma.eventInfo.findFirst({
+      where: {
+        id: eventId,
+        createdBy: adminId,
+      },
+    });
+
+    if (!event) {
+      throw new NotFoundException(
+        'Admin or Event not found'
+      );
+    }
+
+    return {
+      message: 'Session validated',
+      event,
+    };
+  }
 }

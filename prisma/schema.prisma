@@ -30,6 +30,7 @@ model EventInfo  {
   creator AdminLogin @relation(fields: [createdBy], references: [id])
 
   matchHistories MatchHistory[]
+  deviceEvents DeviceEvent[]
 }
 
 model MatchHistory {
@@ -51,3 +52,15 @@ model ControlPanelLogin {
   adminId Int
   admin AdminLogin @relation(fields: [adminId], references: [id])
 }
+
+model DeviceEvent {
+  id        String   @id @default(uuid())
+  deviceId  String
+  eventId   String
+  createdAt DateTime @default(now())
+
+  event EventInfo @relation(fields: [eventId], references: [id])
+
+  @@unique([deviceId, eventId])
+}
+

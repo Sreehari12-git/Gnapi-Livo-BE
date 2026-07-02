@@ -18,6 +18,11 @@ export class EventController {
    return this.eventService.getAllEvents();
   }
 
+  @Get(':id')
+  async getEventById(@Param('id') id: string) {
+    return this.eventService.getEventById(id);
+  }
+
   @Patch(':id')
   async updateEvent(@Param('id') id: string,
   @Body() updateEventDto: UpdateEventDto) {
