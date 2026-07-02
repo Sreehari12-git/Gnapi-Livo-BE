@@ -19,6 +19,7 @@ model AdminLogin {
   password String 
 
   events  EventInfo[]
+  controlPanelUsers ControlPanelLogin[]
 }
 
 model EventInfo  {
@@ -47,4 +48,6 @@ model ControlPanelLogin {
   name String
   email String @unique
   password String
+  adminId Int
+  admin AdminLogin @relation(fields: [adminId], references: [id])
 }
