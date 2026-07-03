@@ -8,11 +8,12 @@ datasource db {
 }
 
 model AdminLogin {
-  id                 Int                 @id @default(autoincrement())
-  email              String              @unique
-  password           String
-  controlPanelLogins ControlPanelLogin[]
-  events             EventInfo[]
+  id Int @id @default(autoincrement())
+  email String @unique
+  password String 
+
+  events  EventInfo[]
+  controlPanelUsers ControlPanelLogin[]
 }
 
 model EventInfo {
@@ -22,6 +23,7 @@ model EventInfo {
   DeviceEvent    DeviceEvent[]
   creator        AdminLogin     @relation(fields: [createdBy], references: [id])
   matchHistories MatchHistory[]
+  deviceEvents DeviceEvent[]
 }
 
 model MatchHistory {
@@ -39,16 +41,18 @@ model ControlPanelLogin {
   name     String
   email    String     @unique
   password String
-  adminId  Int
-  admin    AdminLogin @relation(fields: [adminId], references: [id])
+  adminId Int
+  admin AdminLogin @relation(fields: [adminId], references: [id])
 }
 
 model DeviceEvent {
-  id        String    @id
+  id        String   @id @default(uuid())
   deviceId  String
   eventId   String
-  createdAt DateTime  @default(now())
-  EventInfo EventInfo @relation(fields: [eventId], references: [id])
+  createdAt DateTime @default(now())
+
+  event EventInfo @relation(fields: [eventId], references: [id])
 
   @@unique([deviceId, eventId])
 }
+
