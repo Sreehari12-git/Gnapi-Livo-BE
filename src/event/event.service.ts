@@ -59,6 +59,9 @@ export class EventService {
             email: true,
           },
         },
+        matchHistories: {
+          orderBy: { createdAt: 'desc' },
+        },
       },
     });
 

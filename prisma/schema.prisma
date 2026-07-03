@@ -20,20 +20,25 @@ model EventInfo {
   id             String         @id @default(uuid())
   name           String
   createdBy      Int
-  DeviceEvent    DeviceEvent[]
   creator        AdminLogin     @relation(fields: [createdBy], references: [id])
   matchHistories MatchHistory[]
   deviceEvents DeviceEvent[]
+  matches        Match[]
 }
 
 model MatchHistory {
   id         String    @id @default(uuid())
   eventId    String
+  matchId    String?   @unique
+  sport      String
+  name       String
   teamAName  String
   teamBName  String
   teamAScore Int
   teamBScore Int
+  createdAt  DateTime  @default(now())
   event      EventInfo @relation(fields: [eventId], references: [id])
+  match      Match?    @relation(fields: [matchId], references: [id])
 }
 
 model ControlPanelLogin {
@@ -54,5 +59,27 @@ model DeviceEvent {
   event EventInfo @relation(fields: [eventId], references: [id])
 
   @@unique([deviceId, eventId])
+}
+
+model LiveSelection {
+  id                      String   @id @default(uuid())
+  room                    String   @unique
+  liveCapturerIdentity    String?
+  liveCommentatorIdentity String?
+  updatedAt               DateTime @updatedAt
+}
+
+model Match {
+  id                      String    @id @default(uuid())
+  eventId                 String
+  event                   EventInfo @relation(fields: [eventId], references: [id])
+  sport                   String
+  name                    String
+  liveStatus              String    @default("not_started")
+  liveCapturerIdentity    String?
+  liveCommentatorIdentity String?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+  history                 MatchHistory?
 }
 

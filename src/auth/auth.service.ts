@@ -222,6 +222,7 @@ async controlPanelLogin(loginDto: LoginDto) {
       id: user.id,
       name: user.name,
       email: user.email,
+      adminId: user.adminId,
     },
   };
 }

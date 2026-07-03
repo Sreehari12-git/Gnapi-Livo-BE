@@ -1,0 +1,163 @@
+import { Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { LiveKitService } from '../livekit/livekit.service';
+import { CreateMatchDto } from './dto/create-match.dto';
+import { UpdateMatchDto } from './dto/update-match.dto';
+import { SetMatchLiveSelectionDto } from './dto/set-match-live-selection.dto';
+
+@Injectable()
+export class MatchService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly liveKitService: LiveKitService,
+  ) {}
+
+  async createMatch(dto: CreateMatchDto) {
+    const { eventId, sport, name } = dto;
+
+    const event = await this.prisma.eventInfo.findUnique({ where: { id: eventId } });
+    if (!event) {
+      throw new NotFoundException('Event not found');
+    }
+
+    return this.prisma.match.create({ data: { eventId, sport, name } });
+  }
+
+  async listMatchesForEvent(eventId: string, forViewer: boolean) {
+    return this.prisma.match.findMany({
+      where: {
+        eventId,
+        ...(forViewer ? { liveStatus: { in: ['live', 'ended'] } } : {}),
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async getMatch(id: string) {
+    const match = await this.prisma.match.findUnique({ where: { id } });
+    if (!match) {
+      throw new NotFoundException('Match not found');
+    }
+    return match;
+  }
+
+  async updateMatch(id: string, dto: UpdateMatchDto) {
+    await this.getMatch(id);
+
+    const { finalScore, ...rest } = dto;
+    const isEnding = dto.liveStatus === 'ended';
+
+    const match = await this.prisma.match.update({
+      where: { id },
+      data: {
+        ...rest,
+        ...(isEnding ? { liveCapturerIdentity: null, liveCommentatorIdentity: null } : {}),
+      },
+    });
+
+    if (isEnding) {
+      await this.liveKitService.sendRoomData(match.eventId, {
+        type: 'MATCH_LIVE_UPDATE',
+        matchId: match.id,
+        liveCapturerIdentity: null,
+        liveCommentatorIdentity: null,
+      });
+
+      if (finalScore) {
+        await this.prisma.matchHistory.upsert({
+          where: { matchId: match.id },
+          update: { ...finalScore },
+          create: {
+            eventId: match.eventId,
+            matchId: match.id,
+            sport: match.sport,
+            name: match.name,
+            ...finalScore,
+          },
+        });
+      }
+    }
+
+    return match;
+  }
+
+  async deleteMatch(id: string) {
+    await this.getMatch(id);
+    await this.prisma.match.delete({ where: { id } });
+    return { message: 'Match deleted successfully' };
+  }
+
+  async setLiveSelection(matchId: string, dto: SetMatchLiveSelectionDto) {
+    const target = await this.getMatch(matchId);
+    const { liveCapturerIdentity, liveCommentatorIdentity } = dto;
+
+    const { updatedMatch, clearedMatches } = await this.prisma.$transaction(async (tx) => {
+      const identitiesToClaim = [liveCapturerIdentity, liveCommentatorIdentity].filter(
+        (identity): identity is string => !!identity,
+      );
+
+      const cleared: { id: string; liveCapturerIdentity: string | null; liveCommentatorIdentity: string | null }[] = [];
+
+      if (identitiesToClaim.length > 0) {
+        const conflicting = await tx.match.findMany({
+          where: {
+            eventId: target.eventId,
+            id: { not: matchId },
+            OR: [
+              { liveCapturerIdentity: { in: identitiesToClaim } },
+              { liveCommentatorIdentity: { in: identitiesToClaim } },
+            ],
+          },
+        });
+
+        for (const conflict of conflicting) {
+          const clearedMatch = await tx.match.update({
+            where: { id: conflict.id },
+            data: {
+              liveCapturerIdentity:
+                conflict.liveCapturerIdentity && identitiesToClaim.includes(conflict.liveCapturerIdentity)
+                  ? null
+                  : conflict.liveCapturerIdentity,
+              liveCommentatorIdentity:
+                conflict.liveCommentatorIdentity && identitiesToClaim.includes(conflict.liveCommentatorIdentity)
+                  ? null
+                  : conflict.liveCommentatorIdentity,
+            },
+          });
+          cleared.push(clearedMatch);
+        }
+      }
+
+      const goesLive = !!liveCapturerIdentity || !!liveCommentatorIdentity;
+
+      const updated = await tx.match.update({
+        where: { id: matchId },
+        data: {
+          liveCapturerIdentity,
+          liveCommentatorIdentity,
+          ...(goesLive && target.liveStatus === 'not_started' ? { liveStatus: 'live' } : {}),
+        },
+      });
+
+      return { updatedMatch: updated, clearedMatches: cleared };
+    });
+
+    await this.liveKitService.sendRoomData(target.eventId, {
+      type: 'MATCH_LIVE_UPDATE',
+      matchId: updatedMatch.id,
+      liveCapturerIdentity: updatedMatch.liveCapturerIdentity,
+      liveCommentatorIdentity: updatedMatch.liveCommentatorIdentity,
+    });
+
+    for (const clearedMatch of clearedMatches) {
+      await this.liveKitService.sendRoomData(target.eventId, {
+        type: 'MATCH_LIVE_UPDATE',
+        matchId: clearedMatch.id,
+        liveCapturerIdentity: clearedMatch.liveCapturerIdentity,
+        liveCommentatorIdentity: clearedMatch.liveCommentatorIdentity,
+      });
+    }
+
+    return updatedMatch;
+  }
+}
