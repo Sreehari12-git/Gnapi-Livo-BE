@@ -1,9 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -14,20 +8,19 @@ datasource db {
 }
 
 model AdminLogin {
-  id Int @id @default(autoincrement())
-  email String @unique
-  password String 
-
-  events  EventInfo[]
+  id                 Int                 @id @default(autoincrement())
+  email              String              @unique
+  password           String
+  controlPanelLogins ControlPanelLogin[]
+  events             EventInfo[]
 }
 
-model EventInfo  {
-  id String @id @default(uuid())
-  name String
-  createdBy Int
-
-  creator AdminLogin @relation(fields: [createdBy], references: [id])
-
+model EventInfo {
+  id             String         @id @default(uuid())
+  name           String
+  createdBy      Int
+  DeviceEvent    DeviceEvent[]
+  creator        AdminLogin     @relation(fields: [createdBy], references: [id])
   matchHistories MatchHistory[]
 }
 
@@ -38,13 +31,24 @@ model MatchHistory {
   teamBName  String
   teamAScore Int
   teamBScore Int
-
-  event EventInfo @relation(fields: [eventId], references: [id])
+  event      EventInfo @relation(fields: [eventId], references: [id])
 }
 
 model ControlPanelLogin {
-  id Int @id @default(autoincrement())
-  name String
-  email String @unique
+  id       Int        @id @default(autoincrement())
+  name     String
+  email    String     @unique
   password String
+  adminId  Int
+  admin    AdminLogin @relation(fields: [adminId], references: [id])
+}
+
+model DeviceEvent {
+  id        String    @id
+  deviceId  String
+  eventId   String
+  createdAt DateTime  @default(now())
+  EventInfo EventInfo @relation(fields: [eventId], references: [id])
+
+  @@unique([deviceId, eventId])
 }
