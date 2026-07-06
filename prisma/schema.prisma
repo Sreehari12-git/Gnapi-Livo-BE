@@ -19,6 +19,8 @@ model AdminLogin {
 model EventInfo {
   id             String         @id @default(uuid())
   name           String
+  category       String         @default("sports")
+  sport          String?
   createdBy      Int
   creator        AdminLogin     @relation(fields: [createdBy], references: [id])
   matchHistories MatchHistory[]

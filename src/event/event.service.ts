@@ -10,11 +10,13 @@ export class EventService {
   constructor(private readonly prisma: PrismaService) { }
 
   async createEvent(createEventDto: CreateEventDto) {
-    const { name, adminId } = createEventDto;
+    const { name, adminId, category, sport } = createEventDto;
 
     const event = await this.prisma.eventInfo.create({
       data: {
         name,
+        category,
+        sport: sport ?? null,
         creator: {
           connect: { id: adminId }
         }
@@ -26,6 +28,8 @@ export class EventService {
       event: {
         id: event.id,
         name: event.name,
+        category: event.category,
+        sport: event.sport,
         createdBy: event.createdBy,
       },
     };
@@ -87,7 +91,9 @@ export class EventService {
     const updatedEvent = await this.prisma.eventInfo.update({
       where: { id },
       data: {
-        name: updateEventDto.name,
+        ...(updateEventDto.name !== undefined && { name: updateEventDto.name }),
+        ...(updateEventDto.category !== undefined && { category: updateEventDto.category }),
+        ...(updateEventDto.sport !== undefined && { sport: updateEventDto.sport }),
       },
     });
 
