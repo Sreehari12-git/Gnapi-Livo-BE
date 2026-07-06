@@ -8,5 +8,6 @@ import { LiveKitModule } from 'src/livekit/livekit.module';
   imports: [PrismaModule, LiveKitModule],
   controllers: [MatchController],
   providers: [MatchService],
+  exports: [MatchService],
 })
 export class MatchModule {}

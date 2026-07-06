@@ -42,4 +42,9 @@ export class MatchController {
   async setLiveSelection(@Param('id') id: string, @Body() dto: SetMatchLiveSelectionDto) {
     return this.matchService.setLiveSelection(id, dto);
   }
+
+  @Post(':id/youtube/stop')
+  async stopYoutube(@Param('id') id: string) {
+    return this.matchService.stopYoutubeStream(id);
+  }
 }

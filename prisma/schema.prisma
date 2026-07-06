@@ -78,6 +78,10 @@ model Match {
   liveStatus              String    @default("not_started")
   liveCapturerIdentity    String?
   liveCommentatorIdentity String?
+  ytBroadcastId           String?
+  ytStreamId              String?
+  ytWhipUrl               String?
+  ytLiveUrl               String?
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   history                 MatchHistory?

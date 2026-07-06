@@ -42,7 +42,7 @@ export class MatchService {
   }
 
   async updateMatch(id: string, dto: UpdateMatchDto) {
-    await this.getMatch(id);
+    const current = await this.getMatch(id);
 
     const { finalScore, ...rest } = dto;
     const isEnding = dto.liveStatus === 'ended';
@@ -51,16 +51,27 @@ export class MatchService {
       where: { id },
       data: {
         ...rest,
-        ...(isEnding ? { liveCapturerIdentity: null, liveCommentatorIdentity: null } : {}),
+        ...(isEnding
+          ? {
+              liveCapturerIdentity: null,
+              liveCommentatorIdentity: null,
+              ytBroadcastId: null,
+              ytStreamId: null,
+              ytWhipUrl: null,
+              ytLiveUrl: null,
+            }
+          : {}),
       },
     });
 
     if (isEnding) {
+      // Notify capturer to stop WHIP (ytWhipUrl: null tells capturer to close the connection)
       await this.liveKitService.sendRoomData(match.eventId, {
         type: 'MATCH_LIVE_UPDATE',
         matchId: match.id,
         liveCapturerIdentity: null,
         liveCommentatorIdentity: null,
+        ytWhipUrl: null,
       });
 
       if (finalScore) {
@@ -70,8 +81,8 @@ export class MatchService {
           create: {
             eventId: match.eventId,
             matchId: match.id,
-            sport: match.sport,
-            name: match.name,
+            sport: current.sport,
+            name: current.name,
             ...finalScore,
           },
         });
@@ -87,6 +98,61 @@ export class MatchService {
     return { message: 'Match deleted successfully' };
   }
 
+  /** Saves YouTube broadcast info and notifies the assigned capturer to start WHIP */
+  async saveYoutubeInfo(
+    matchId: string,
+    info: {
+      ytBroadcastId: string;
+      ytStreamId: string;
+      ytWhipUrl: string;
+      ytLiveUrl: string;
+    },
+  ) {
+    const match = await this.prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ytBroadcastId: info.ytBroadcastId,
+        ytStreamId: info.ytStreamId,
+        ytWhipUrl: info.ytWhipUrl,
+        ytLiveUrl: info.ytLiveUrl,
+      },
+    });
+
+    // Tell the assigned capturer to open a WHIP connection to YouTube
+    await this.liveKitService.sendRoomData(match.eventId, {
+      type: 'MATCH_LIVE_UPDATE',
+      matchId: match.id,
+      liveCapturerIdentity: match.liveCapturerIdentity,
+      liveCommentatorIdentity: match.liveCommentatorIdentity,
+      ytWhipUrl: match.ytWhipUrl,
+    });
+
+    return match;
+  }
+
+  /** Stops the YouTube stream for a match — clears ytWhipUrl and notifies capturer */
+  async stopYoutubeStream(matchId: string) {
+    const match = await this.prisma.match.update({
+      where: { id: matchId },
+      data: {
+        ytBroadcastId: null,
+        ytStreamId: null,
+        ytWhipUrl: null,
+        ytLiveUrl: null,
+      },
+    });
+
+    await this.liveKitService.sendRoomData(match.eventId, {
+      type: 'MATCH_LIVE_UPDATE',
+      matchId: match.id,
+      liveCapturerIdentity: match.liveCapturerIdentity,
+      liveCommentatorIdentity: match.liveCommentatorIdentity,
+      ytWhipUrl: null,
+    });
+
+    return match;
+  }
+
   async setLiveSelection(matchId: string, dto: SetMatchLiveSelectionDto) {
     const target = await this.getMatch(matchId);
     const { liveCapturerIdentity, liveCommentatorIdentity } = dto;
@@ -96,7 +162,7 @@ export class MatchService {
         (identity): identity is string => !!identity,
       );
 
-      const cleared: { id: string; liveCapturerIdentity: string | null; liveCommentatorIdentity: string | null }[] = [];
+      const cleared: { id: string; liveCapturerIdentity: string | null; liveCommentatorIdentity: string | null; ytWhipUrl: string | null }[] = [];
 
       if (identitiesToClaim.length > 0) {
         const conflicting = await tx.match.findMany({
@@ -142,11 +208,13 @@ export class MatchService {
       return { updatedMatch: updated, clearedMatches: cleared };
     });
 
+    // Include ytWhipUrl so that when a capturer is (re)assigned, they know to start/stop WHIP
     await this.liveKitService.sendRoomData(target.eventId, {
       type: 'MATCH_LIVE_UPDATE',
       matchId: updatedMatch.id,
       liveCapturerIdentity: updatedMatch.liveCapturerIdentity,
       liveCommentatorIdentity: updatedMatch.liveCommentatorIdentity,
+      ytWhipUrl: updatedMatch.ytWhipUrl,
     });
 
     for (const clearedMatch of clearedMatches) {
@@ -155,6 +223,7 @@ export class MatchService {
         matchId: clearedMatch.id,
         liveCapturerIdentity: clearedMatch.liveCapturerIdentity,
         liveCommentatorIdentity: clearedMatch.liveCommentatorIdentity,
+        ytWhipUrl: clearedMatch.ytWhipUrl,
       });
     }
 

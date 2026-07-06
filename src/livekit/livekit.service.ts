@@ -14,7 +14,6 @@ export class LiveKitService {
     this.apiKey,
     this.apiSecret,
   );
-
   constructor(private readonly prisma: PrismaService) {}
 
   async generateToken(dto: GenerateTokenDto): Promise<{ token: string; url: string }> {
@@ -123,4 +122,5 @@ export class LiveKitService {
       throw err;
     }
   }
+
 }

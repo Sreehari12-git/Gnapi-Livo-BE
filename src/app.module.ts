@@ -6,9 +6,10 @@ import { EventService } from './event/event.service';
 import { EventModule } from './event/event.module';
 import { LiveKitModule } from './livekit/livekit.module';
 import { MatchModule } from './match/match.module';
+import { YoutubeModule } from './youtube/youtube.module';
 
 @Module({
-  imports: [AuthModule, EventModule, LiveKitModule, MatchModule],
+  imports: [AuthModule, EventModule, LiveKitModule, MatchModule, YoutubeModule],
   controllers: [AppController],
   providers: [AppService],
 })
