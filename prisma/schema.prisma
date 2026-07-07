@@ -10,10 +10,35 @@ datasource db {
 model AdminLogin {
   id Int @id @default(autoincrement())
   email String @unique
-  password String 
+  password String
 
   events  EventInfo[]
   controlPanelUsers ControlPanelLogin[]
+  subscription Subscription?
+  transactions Transaction[]
+}
+
+model Subscription {
+  id        String   @id @default(uuid())
+  adminId   Int      @unique
+  plan      String   // 'free' | 'pro'
+  status    String   @default("active") // 'active' | 'cancelled'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  admin     AdminLogin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id        String   @id @default(uuid())
+  adminId   Int
+  orderId   String   @unique
+  paymentId String?
+  amount    Int
+  currency  String   @default("INR")
+  status    String   @default("pending") // 'pending' | 'success' | 'failed'
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  admin     AdminLogin @relation(fields: [adminId], references: [id], onDelete: Cascade)
 }
 
 model EventInfo {
