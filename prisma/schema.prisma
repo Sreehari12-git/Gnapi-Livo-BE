@@ -16,6 +16,7 @@ model AdminLogin {
   controlPanelUsers ControlPanelLogin[]
   subscription Subscription?
   transactions Transaction[]
+  usageSessions UsageSession[]
 }
 
 model SubscriptionPlan {
@@ -27,14 +28,15 @@ model SubscriptionPlan {
 }
 
 model Subscription {
-  id        String           @id @default(uuid())
-  adminId   Int              @unique
-  planId    Int           
-  status    String           @default("active") // 'active' | 'cancelled'
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
-  admin     AdminLogin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
-  plan      SubscriptionPlan @relation(fields: [planId], references: [id])
+  id          String           @id @default(uuid())
+  adminId     Int              @unique
+  planId      Int
+  status      String           @default("active")
+  usedMinutes Float            @default(0)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  admin       AdminLogin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  plan        SubscriptionPlan @relation(fields: [planId], references: [id])
 }
 
 model Transaction {
@@ -44,7 +46,7 @@ model Transaction {
   paymentId String?
   amount    Int
   currency  String   @default("INR")
-  status    String   @default("pending") // 'pending' | 'success' | 'failed'
+  status    String   @default("pending")
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   admin     AdminLogin @relation(fields: [adminId], references: [id], onDelete: Cascade)
@@ -123,3 +125,17 @@ model Match {
   history                 MatchHistory?
 }
 
+model UsageSession {
+  id              String    @id @default(uuid())
+  adminId         Int
+  room            String
+  identity        String
+  role            String
+  startedAt       DateTime  @default(now())
+  endedAt         DateTime?
+  durationMinutes Float?
+
+  admin AdminLogin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@unique([room, identity])
+}

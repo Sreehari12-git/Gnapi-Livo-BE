@@ -1,8 +1,9 @@
-import { Injectable } from '@nestjs/common';
-import { AccessToken, DataPacket_Kind, RoomServiceClient } from 'livekit-server-sdk';
+import { ForbiddenException, Injectable } from '@nestjs/common';
+import { AccessToken, DataPacket_Kind, RoomServiceClient, WebhookReceiver } from 'livekit-server-sdk';
 import { GenerateTokenDto } from './dto/generate-token.dto';
 import { SetLiveSelectionDto } from './dto/set-live-selection.dto';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsageService } from '../usage/usage.service';
 
 @Injectable()
 export class LiveKitService {
@@ -14,10 +15,33 @@ export class LiveKitService {
     this.apiKey,
     this.apiSecret,
   );
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly webhookReceiver = new WebhookReceiver(
+    process.env.LIVEKIT_API_KEY ?? '',
+    process.env.LIVEKIT_API_SECRET ?? '',
+  );
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usageService: UsageService,
+  ) {}
+
+  async receiveWebhook(rawBody: string, authHeader: string) {
+    return this.webhookReceiver.receive(rawBody, authHeader);
+  }
 
   async generateToken(dto: GenerateTokenDto): Promise<{ token: string; url: string }> {
     const { identity, room, role } = dto;
+
+    const event = await this.prisma.eventInfo.findUnique({ where: { id: room } });
+    if (event) {
+      const remaining = await this.usageService.getRemainingMinutes(event.createdBy);
+      if (remaining <= 0) {
+        throw new ForbiddenException({
+          code: 'USAGE_LIMIT_EXCEEDED',
+          message: 'Usage limit exceeded. Please upgrade your plan.',
+        });
+      }
+    }
 
     const at = new AccessToken(this.apiKey, this.apiSecret, {
       identity,
@@ -52,7 +76,7 @@ export class LiveKitService {
           room,
           canPublish: false,
           canSubscribe: true,
-          canPublishData: true, // needs data channel to send LIVE_UPDATE messages
+          canPublishData: true,
         });
         break;
 
@@ -68,11 +92,7 @@ export class LiveKitService {
     }
 
     const token = await at.toJwt();
-
-    return {
-      token,
-      url: this.livekitUrl ?? '',
-    };
+    return { token, url: this.livekitUrl ?? '' };
   }
 
   async getLiveSelection(room: string) {
@@ -81,7 +101,6 @@ export class LiveKitService {
       update: {},
       create: { room },
     });
-
     return selection;
   }
 
@@ -110,7 +129,6 @@ export class LiveKitService {
       await this.roomService.sendData(room, encoded, DataPacket_Kind.RELIABLE);
     } catch (err) {
       if (err?.status !== 404) throw err;
-      // Room doesn't exist yet (nobody has joined) — nothing to notify.
     }
   }
 
@@ -122,5 +140,4 @@ export class LiveKitService {
       throw err;
     }
   }
-
 }
