@@ -18,14 +18,23 @@ model AdminLogin {
   transactions Transaction[]
 }
 
+model SubscriptionPlan {
+  id                Int @id @default(autoincrement())
+  name              String
+  amount            Int
+  usageLimitMinutes Int
+  subscriptions     Subscription[]
+}
+
 model Subscription {
-  id        String   @id @default(uuid())
-  adminId   Int      @unique
-  plan      String   // 'free' | 'pro'
-  status    String   @default("active") // 'active' | 'cancelled'
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  admin     AdminLogin @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  id        String           @id @default(uuid())
+  adminId   Int              @unique
+  planId    Int           
+  status    String           @default("active") // 'active' | 'cancelled'
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  admin     AdminLogin       @relation(fields: [adminId], references: [id], onDelete: Cascade)
+  plan      SubscriptionPlan @relation(fields: [planId], references: [id])
 }
 
 model Transaction {

@@ -14,10 +14,27 @@ export class PaymentService {
     });
   }
 
-  async createOrder(adminId: number, amount: number, currency = 'INR') {
+  async getPlans() {
+    return this.prisma.subscriptionPlan.findMany({
+      orderBy: { amount: 'asc' },
+    });
+  }
+
+  async getCurrentSubscription(adminId: number) {
+    return this.prisma.subscription.findUnique({
+      where: { adminId },
+      include: { plan: true },
+    });
+  }
+
+  async createOrder(adminId: number, planId: number) {
+    const plan = await this.prisma.subscriptionPlan.findUniqueOrThrow({
+      where: { id: planId },
+    });
+
     const order = await this.razorpay.orders.create({
-      amount: amount * 100,
-      currency,
+      amount: plan.amount * 100,
+      currency: 'INR',
       payment_capture: true,
     } as any);
 
@@ -25,8 +42,8 @@ export class PaymentService {
       data: {
         adminId,
         orderId: order.id as string,
-        amount: amount * 100,
-        currency,
+        amount: plan.amount * 100,
+        currency: 'INR',
         status: 'pending',
       },
     });
@@ -41,6 +58,7 @@ export class PaymentService {
 
   async verifyAndActivate(
     adminId: number,
+    planId: number,
     orderId: string,
     paymentId: string,
     signature: string,
@@ -62,8 +80,8 @@ export class PaymentService {
       }),
       this.prisma.subscription.upsert({
         where: { adminId },
-        create: { adminId, plan: 'pro', status: 'active' },
-        update: { plan: 'pro', status: 'active' },
+        create: { adminId, planId, status: 'active' },
+        update: { planId, status: 'active' },
       }),
     ]);
 
@@ -76,16 +94,15 @@ export class PaymentService {
         .update({ where: { orderId }, data: { status: 'failed' } })
         .catch(() => {});
     }
-    // Delete admin — cascades to subscription & transactions via onDelete: Cascade
     await this.prisma.adminLogin.delete({ where: { id: adminId } }).catch(() => {});
     return { success: true };
   }
 
-  async activateFree(adminId: number) {
+  async activateFree(adminId: number, planId: number) {
     await this.prisma.subscription.upsert({
       where: { adminId },
-      create: { adminId, plan: 'free', status: 'active' },
-      update: { plan: 'free', status: 'active' },
+      create: { adminId, planId, status: 'active' },
+      update: { planId, status: 'active' },
     });
     return { success: true };
   }
