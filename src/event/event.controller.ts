@@ -18,6 +18,11 @@ export class EventController {
    return this.eventService.getAllEvents();
   }
 
+  @Get('admin/:adminId')
+  async getEventsByAdmin(@Param('adminId') adminId: string) {
+    return this.eventService.getEventsByAdmin(Number(adminId));
+  }
+
   @Get(':id')
   async getEventById(@Param('id') id: string) {
     return this.eventService.getEventById(id);

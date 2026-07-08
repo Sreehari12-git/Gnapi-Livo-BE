@@ -1,10 +1,11 @@
-import { ConflictException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service'
 import { LoginDto } from './dto/login.dto';
 import bcrypt from "bcrypt"
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import { ControlPanelRegisterDto } from './dto/control-panel-register.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -171,6 +172,21 @@ export class AuthService {
       email: user.email,
     },
   };
+}
+
+async changeAdminPassword(dto: ChangePasswordDto) {
+  const { adminId, currentPassword, newPassword } = dto;
+
+  const user = await this.prisma.adminLogin.findUnique({ where: { id: adminId } });
+  if (!user) throw new NotFoundException('Admin not found');
+
+  const match = await bcrypt.compare(currentPassword, user.password);
+  if (!match) throw new BadRequestException('Current password is incorrect');
+
+  const hashed = await bcrypt.hash(newPassword, 10);
+  await this.prisma.adminLogin.update({ where: { id: adminId }, data: { password: hashed } });
+
+  return { message: 'Password changed successfully' };
 }
 
 async controlPanelLogin(loginDto: LoginDto) {

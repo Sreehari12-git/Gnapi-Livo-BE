@@ -53,6 +53,15 @@ export class EventService {
     return events;
   }
 
+  async getEventsByAdmin(adminId: number) {
+    const events = await this.prisma.eventInfo.findMany({
+      where: { createdBy: adminId },
+      orderBy: { id: 'desc' },
+    });
+
+    return events;
+  }
+
   async getEventById(id: string) {
     const event = await this.prisma.eventInfo.findUnique({
       where: { id },
