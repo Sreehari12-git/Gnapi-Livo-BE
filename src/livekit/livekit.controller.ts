@@ -47,11 +47,16 @@ export class LiveKitController {
     @Req() req: any,
     @Headers('Authorization') authHeader: string,
   ) {
-    const body = req.rawBody?.toString() ?? '';
+    console.log('[WEBHOOK] hit — authHeader:', !!authHeader);
+    // express.raw() stores the buffer in req.body; fall back to req.rawBody
+    const raw: Buffer | string | undefined = Buffer.isBuffer(req.body) ? req.body : req.rawBody;
+    const body = raw?.toString() ?? '';
+    console.log('[WEBHOOK] body length:', body.length);
     let event: Awaited<ReturnType<typeof this.livekitService.receiveWebhook>>;
     try {
       event = await this.livekitService.receiveWebhook(body, authHeader);
-    } catch {
+    } catch (err: any) {
+      console.error('[WEBHOOK] verification failed:', err?.message);
       return { ok: false };
     }
 
@@ -67,8 +72,10 @@ export class LiveKitController {
 
     if (event.event === 'participant_joined') {
       await this.usageService.onParticipantJoined(room, identity, role);
+      console.log("Joined");
     } else if (event.event === 'participant_left') {
       await this.usageService.onParticipantLeft(room, identity);
+      console.log("Left");
     }
 
     return { ok: true };
