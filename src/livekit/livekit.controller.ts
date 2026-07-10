@@ -73,9 +73,25 @@ export class LiveKitController {
     if (event.event === 'participant_joined') {
       await this.usageService.onParticipantJoined(room, identity, role);
       console.log("Joined");
+      // If this event's admin is already over-limit, kick the new joiner immediately
+      const eventInfo = await this.livekitService['prisma'].eventInfo.findUnique({ where: { id: room } });
+      if (eventInfo) {
+        const remaining = await this.usageService.getRemainingMinutes(eventInfo.createdBy);
+        if (remaining <= 0) {
+          await this.livekitService.enforceUsageLimitForRoom(room);
+        }
+      }
     } else if (event.event === 'participant_left') {
       await this.usageService.onParticipantLeft(room, identity);
       console.log("Left");
+      // After recording the departed session, check if remaining just crossed 0
+      const eventInfo = await this.livekitService['prisma'].eventInfo.findUnique({ where: { id: room } });
+      if (eventInfo) {
+        const remaining = await this.usageService.getRemainingMinutes(eventInfo.createdBy);
+        if (remaining <= 0) {
+          await this.livekitService.enforceUsageLimitForRoom(room);
+        }
+      }
     }
 
     return { ok: true };

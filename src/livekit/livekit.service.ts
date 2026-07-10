@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
 import { AccessToken, DataPacket_Kind, RoomServiceClient, WebhookReceiver } from 'livekit-server-sdk';
 import { GenerateTokenDto } from './dto/generate-token.dto';
 import { SetLiveSelectionDto } from './dto/set-live-selection.dto';
@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UsageService } from '../usage/usage.service';
 
 @Injectable()
-export class LiveKitService {
+export class LiveKitService implements OnModuleInit {
   private readonly apiKey = process.env.LIVEKIT_API_KEY;
   private readonly apiSecret = process.env.LIVEKIT_API_SECRET;
   private readonly livekitUrl = process.env.LIVEKIT_URL;
@@ -24,6 +24,43 @@ export class LiveKitService {
     private readonly prisma: PrismaService,
     private readonly usageService: UsageService,
   ) {}
+
+  onModuleInit() {
+    // Check every 60 seconds whether any active room has exceeded its usage limit
+    setInterval(() => this.enforceUsageLimitsForAllRooms(), 60_000);
+  }
+
+  private async enforceUsageLimitsForAllRooms() {
+    // Find one active session per admin (gives us which admins have live rooms)
+    const activeSessions = await this.prisma.usageSession.findMany({
+      where: { endedAt: null },
+      select: { adminId: true, room: true },
+      distinct: ['adminId'],
+    });
+
+    for (const { adminId, room } of activeSessions) {
+      const remaining = await this.usageService.getRemainingMinutes(adminId);
+      if (remaining <= 0) {
+        await this.enforceUsageLimitForRoom(room);
+      }
+    }
+  }
+
+  async enforceUsageLimitForRoom(room: string) {
+    // Broadcast to all clients so they can show the error and disconnect
+    await this.sendRoomData(room, { type: 'USAGE_EXCEEDED' });
+
+    // Kick all non-broadcaster participants (capturers, commentators, viewers)
+    const participants = await this.listParticipants(room);
+    for (const p of participants) {
+      try {
+        const role = JSON.parse(p.metadata ?? '{}').role;
+        if (role !== 'broadcaster') {
+          await this.roomService.removeParticipant(room, p.identity);
+        }
+      } catch {}
+    }
+  }
 
   async receiveWebhook(rawBody: string, authHeader: string) {
     return this.webhookReceiver.receive(rawBody, authHeader);
