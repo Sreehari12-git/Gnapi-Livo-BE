@@ -53,8 +53,8 @@ export class MatchService {
         ...rest,
         ...(isEnding
           ? {
-              liveCapturerIdentity: null,
-              liveCommentatorIdentity: null,
+              liveCapturerIdentities: [],
+              liveCommentatorIdentities: [],
               ytBroadcastId: null,
               ytStreamId: null,
               ytWhipUrl: null,
@@ -65,12 +65,11 @@ export class MatchService {
     });
 
     if (isEnding) {
-      // Notify capturer to stop WHIP (ytWhipUrl: null tells capturer to close the connection)
       await this.liveKitService.sendRoomData(match.eventId, {
         type: 'MATCH_LIVE_UPDATE',
         matchId: match.id,
-        liveCapturerIdentity: null,
-        liveCommentatorIdentity: null,
+        liveCapturerIdentities: [],
+        liveCommentatorIdentities: [],
         ytWhipUrl: null,
       });
 
@@ -98,7 +97,6 @@ export class MatchService {
     return { message: 'Match deleted successfully' };
   }
 
-  /** Saves YouTube broadcast info and notifies the assigned capturer to start WHIP */
   async saveYoutubeInfo(
     matchId: string,
     info: {
@@ -118,19 +116,17 @@ export class MatchService {
       },
     });
 
-    // Tell the assigned capturer to open a WHIP connection to YouTube
     await this.liveKitService.sendRoomData(match.eventId, {
       type: 'MATCH_LIVE_UPDATE',
       matchId: match.id,
-      liveCapturerIdentity: match.liveCapturerIdentity,
-      liveCommentatorIdentity: match.liveCommentatorIdentity,
+      liveCapturerIdentities: match.liveCapturerIdentities,
+      liveCommentatorIdentities: match.liveCommentatorIdentities,
       ytWhipUrl: match.ytWhipUrl,
     });
 
     return match;
   }
 
-  /** Stops the YouTube stream for a match — clears ytWhipUrl and notifies capturer */
   async stopYoutubeStream(matchId: string) {
     const match = await this.prisma.match.update({
       where: { id: matchId },
@@ -145,8 +141,8 @@ export class MatchService {
     await this.liveKitService.sendRoomData(match.eventId, {
       type: 'MATCH_LIVE_UPDATE',
       matchId: match.id,
-      liveCapturerIdentity: match.liveCapturerIdentity,
-      liveCommentatorIdentity: match.liveCommentatorIdentity,
+      liveCapturerIdentities: match.liveCapturerIdentities,
+      liveCommentatorIdentities: match.liveCommentatorIdentities,
       ytWhipUrl: null,
     });
 
@@ -155,77 +151,58 @@ export class MatchService {
 
   async setLiveSelection(matchId: string, dto: SetMatchLiveSelectionDto) {
     const target = await this.getMatch(matchId);
-    const { liveCapturerIdentity, liveCommentatorIdentity } = dto;
+    const newCapturers = dto.liveCapturerIdentities ?? target.liveCapturerIdentities;
+    const newCommentators = dto.liveCommentatorIdentities ?? target.liveCommentatorIdentities;
 
-    const { updatedMatch, clearedMatches } = await this.prisma.$transaction(async (tx) => {
-      const identitiesToClaim = [liveCapturerIdentity, liveCommentatorIdentity].filter(
-        (identity): identity is string => !!identity,
-      );
-
-      const cleared: { id: string; liveCapturerIdentity: string | null; liveCommentatorIdentity: string | null; ytWhipUrl: string | null }[] = [];
-
-      if (identitiesToClaim.length > 0) {
+    const updatedMatch = await this.prisma.$transaction(async (tx) => {
+      // Remove any newly-claimed identities from other matches (one-match-at-a-time rule)
+      const claimedIds = [...newCapturers, ...newCommentators];
+      if (claimedIds.length > 0) {
         const conflicting = await tx.match.findMany({
           where: {
             eventId: target.eventId,
             id: { not: matchId },
             OR: [
-              { liveCapturerIdentity: { in: identitiesToClaim } },
-              { liveCommentatorIdentity: { in: identitiesToClaim } },
+              { liveCapturerIdentities: { hasSome: claimedIds } },
+              { liveCommentatorIdentities: { hasSome: claimedIds } },
             ],
           },
         });
 
         for (const conflict of conflicting) {
-          const clearedMatch = await tx.match.update({
+          await tx.match.update({
             where: { id: conflict.id },
             data: {
-              liveCapturerIdentity:
-                conflict.liveCapturerIdentity && identitiesToClaim.includes(conflict.liveCapturerIdentity)
-                  ? null
-                  : conflict.liveCapturerIdentity,
-              liveCommentatorIdentity:
-                conflict.liveCommentatorIdentity && identitiesToClaim.includes(conflict.liveCommentatorIdentity)
-                  ? null
-                  : conflict.liveCommentatorIdentity,
+              liveCapturerIdentities: conflict.liveCapturerIdentities.filter(
+                (id) => !claimedIds.includes(id),
+              ),
+              liveCommentatorIdentities: conflict.liveCommentatorIdentities.filter(
+                (id) => !claimedIds.includes(id),
+              ),
             },
           });
-          cleared.push(clearedMatch);
         }
       }
 
-      const goesLive = !!liveCapturerIdentity || !!liveCommentatorIdentity;
+      const goesLive = newCapturers.length > 0 || newCommentators.length > 0;
 
-      const updated = await tx.match.update({
+      return tx.match.update({
         where: { id: matchId },
         data: {
-          liveCapturerIdentity,
-          liveCommentatorIdentity,
+          liveCapturerIdentities: newCapturers,
+          liveCommentatorIdentities: newCommentators,
           ...(goesLive && target.liveStatus === 'not_started' ? { liveStatus: 'live' } : {}),
         },
       });
-
-      return { updatedMatch: updated, clearedMatches: cleared };
     });
 
-    // Include ytWhipUrl so that when a capturer is (re)assigned, they know to start/stop WHIP
     await this.liveKitService.sendRoomData(target.eventId, {
       type: 'MATCH_LIVE_UPDATE',
       matchId: updatedMatch.id,
-      liveCapturerIdentity: updatedMatch.liveCapturerIdentity,
-      liveCommentatorIdentity: updatedMatch.liveCommentatorIdentity,
+      liveCapturerIdentities: updatedMatch.liveCapturerIdentities,
+      liveCommentatorIdentities: updatedMatch.liveCommentatorIdentities,
       ytWhipUrl: updatedMatch.ytWhipUrl,
     });
-
-    for (const clearedMatch of clearedMatches) {
-      await this.liveKitService.sendRoomData(target.eventId, {
-        type: 'MATCH_LIVE_UPDATE',
-        matchId: clearedMatch.id,
-        liveCapturerIdentity: clearedMatch.liveCapturerIdentity,
-        liveCommentatorIdentity: clearedMatch.liveCommentatorIdentity,
-        ytWhipUrl: clearedMatch.ytWhipUrl,
-      });
-    }
 
     return updatedMatch;
   }

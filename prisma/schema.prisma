@@ -108,14 +108,14 @@ model LiveSelection {
 }
 
 model Match {
-  id                      String    @id @default(uuid())
-  eventId                 String
-  event                   EventInfo @relation(fields: [eventId], references: [id])
-  sport                   String
-  name                    String
-  liveStatus              String    @default("not_started")
-  liveCapturerIdentity    String?
-  liveCommentatorIdentity String?
+  id                        String    @id @default(uuid())
+  eventId                   String
+  event                     EventInfo @relation(fields: [eventId], references: [id])
+  sport                     String
+  name                      String
+  liveStatus                String    @default("not_started")
+  liveCapturerIdentities    String[]
+  liveCommentatorIdentities String[]
   ytBroadcastId           String?
   ytStreamId              String?
   ytWhipUrl               String?
