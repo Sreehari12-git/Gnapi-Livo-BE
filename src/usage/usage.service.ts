@@ -44,8 +44,9 @@ export class UsageService {
     });
     if (!subscription) return 0;
 
+    const cutoff = new Date(Date.now() - 12 * 60 * 60 * 1000); // ignore sessions older than 12h (zombies)
     const activeSessions = await this.prisma.usageSession.findMany({
-      where: { adminId, endedAt: null },
+      where: { adminId, endedAt: null, startedAt: { gte: cutoff } },
     });
 
     const now = new Date();
