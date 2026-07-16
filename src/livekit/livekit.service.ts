@@ -1,7 +1,6 @@
 import { ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
 import { AccessToken, DataPacket_Kind, RoomServiceClient, WebhookReceiver } from 'livekit-server-sdk';
 import { GenerateTokenDto } from './dto/generate-token.dto';
-import { SetLiveSelectionDto } from './dto/set-live-selection.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsageService } from '../usage/usage.service';
 
@@ -130,33 +129,6 @@ export class LiveKitService implements OnModuleInit {
 
     const token = await at.toJwt();
     return { token, url: this.livekitUrl ?? '' };
-  }
-
-  async getLiveSelection(room: string) {
-    const selection = await this.prisma.liveSelection.upsert({
-      where: { room },
-      update: {},
-      create: { room },
-    });
-    return selection;
-  }
-
-  async setLiveSelection(dto: SetLiveSelectionDto) {
-    const { room, liveCapturerIdentity, liveCommentatorIdentity } = dto;
-
-    const selection = await this.prisma.liveSelection.upsert({
-      where: { room },
-      update: { liveCapturerIdentity, liveCommentatorIdentity },
-      create: { room, liveCapturerIdentity, liveCommentatorIdentity },
-    });
-
-    await this.sendRoomData(room, {
-      type: 'LIVE_UPDATE',
-      liveCapturerIdentity: selection.liveCapturerIdentity,
-      liveCommentatorIdentity: selection.liveCommentatorIdentity,
-    });
-
-    return selection;
   }
 
   async sendRoomData(room: string, payload: object) {

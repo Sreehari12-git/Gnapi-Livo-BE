@@ -60,7 +60,6 @@ model EventInfo {
   createdBy      Int
   creator        AdminLogin     @relation(fields: [createdBy], references: [id])
   matchHistories     MatchHistory[]
-  deviceEvents       DeviceEvent[]
   matches            Match[]
   deviceEventHistory DeviceEventHistory[]
 }
@@ -89,24 +88,7 @@ model ControlPanelLogin {
   admin AdminLogin @relation(fields: [adminId], references: [id])
 }
 
-model DeviceEvent {
-  id        String   @id @default(uuid())
-  deviceId  String
-  eventId   String
-  createdAt DateTime @default(now())
 
-  event EventInfo @relation(fields: [eventId], references: [id])
-
-  @@unique([deviceId, eventId])
-}
-
-model LiveSelection {
-  id                      String   @id @default(uuid())
-  room                    String   @unique
-  liveCapturerIdentity    String?
-  liveCommentatorIdentity String?
-  updatedAt               DateTime @updatedAt
-}
 
 model Match {
   id                        String    @id @default(uuid())

@@ -9,11 +9,10 @@ import {
   Query,
   Req,
 } from '@nestjs/common';
+
 import { LiveKitService } from './livekit.service';
 import { UsageService } from '../usage/usage.service';
 import { GenerateTokenDto } from './dto/generate-token.dto';
-import { SetLiveSelectionDto } from './dto/set-live-selection.dto';
-
 @Controller('livekit')
 export class LiveKitController {
   constructor(
@@ -24,16 +23,6 @@ export class LiveKitController {
   @Post('token')
   async generateToken(@Body() generateTokenDto: GenerateTokenDto) {
     return this.livekitService.generateToken(generateTokenDto);
-  }
-
-  @Get('live-selection/:room')
-  async getLiveSelection(@Param('room') room: string) {
-    return this.livekitService.getLiveSelection(room);
-  }
-
-  @Post('live-selection')
-  async setLiveSelection(@Body() setLiveSelectionDto: SetLiveSelectionDto) {
-    return this.livekitService.setLiveSelection(setLiveSelectionDto);
   }
 
   @Get('participants/:room')
