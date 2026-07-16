@@ -3,6 +3,7 @@ import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create.event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ValidateSessionDto } from './dto/validate.session.dto';
+import { SaveDeviceEventHistoryDto } from './dto/device-event-history.dto';
 
 @Controller('event')
 export class EventController {
@@ -42,5 +43,15 @@ export class EventController {
   @Post('validate')
   async validateSession(@Body() validateSessionDto: ValidateSessionDto,) {
     return this.eventService.validateSession(validateSessionDto);
+  }
+
+  @Post('history')
+  async saveHistory(@Body() dto: SaveDeviceEventHistoryDto) {
+    return this.eventService.saveDeviceEventHistory(dto);
+  }
+
+  @Get('history/:deviceId')
+  async getHistory(@Param('deviceId') deviceId: string) {
+    return this.eventService.getDeviceEventHistory(deviceId);
   }
 }

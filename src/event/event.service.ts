@@ -4,6 +4,7 @@ import { CreateEventDto } from './dto/create.event.dto';
 import { connect } from 'http2';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { ValidateSessionDto } from './dto/validate.session.dto';
+import { SaveDeviceEventHistoryDto } from './dto/device-event-history.dto';
 
 @Injectable()
 export class EventService {
@@ -125,6 +126,46 @@ export class EventService {
     return { message: 'Event deleted successfully' };
   }
 
+
+  async saveDeviceEventHistory(dto: SaveDeviceEventHistoryDto) {
+    const { deviceId, eventId } = dto;
+
+    const event = await this.prisma.eventInfo.findUnique({ where: { id: eventId } });
+    if (!event) throw new NotFoundException('Event not found');
+
+    await this.prisma.deviceEventHistory.upsert({
+      where: { deviceId_eventId: { deviceId, eventId } },
+      create: { deviceId, eventId },
+      update: { lastViewedAt: new Date() },
+    });
+
+    return { message: 'History saved' };
+  }
+
+  async getDeviceEventHistory(deviceId: string) {
+    const history = await this.prisma.deviceEventHistory.findMany({
+      where: { deviceId },
+      orderBy: { lastViewedAt: 'desc' },
+      include: {
+        event: {
+          select: {
+            id: true,
+            name: true,
+            category: true,
+            sport: true,
+          },
+        },
+      },
+    });
+
+    return history.map(h => ({
+      eventId: h.eventId,
+      eventName: h.event.name,
+      category: h.event.category,
+      sport: h.event.sport,
+      lastViewedAt: h.lastViewedAt,
+    }));
+  }
 
   async validateSession(dto: ValidateSessionDto) {
     const { adminId, eventId } = dto;

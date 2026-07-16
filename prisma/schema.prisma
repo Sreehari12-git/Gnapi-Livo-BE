@@ -59,9 +59,10 @@ model EventInfo {
   sport          String?
   createdBy      Int
   creator        AdminLogin     @relation(fields: [createdBy], references: [id])
-  matchHistories MatchHistory[]
-  deviceEvents DeviceEvent[]
-  matches        Match[]
+  matchHistories     MatchHistory[]
+  deviceEvents       DeviceEvent[]
+  matches            Match[]
+  deviceEventHistory DeviceEventHistory[]
 }
 
 model MatchHistory {
@@ -123,6 +124,18 @@ model Match {
   createdAt               DateTime  @default(now())
   updatedAt               DateTime  @updatedAt
   history                 MatchHistory?
+}
+
+model DeviceEventHistory {
+  id           String    @id @default(uuid())
+  deviceId     String
+  eventId      String
+  lastViewedAt DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  event        EventInfo @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([deviceId, eventId])
+  @@index([deviceId])
 }
 
 model UsageSession {
