@@ -59,12 +59,17 @@ export class MatchService {
               ytStreamId: null,
               ytWhipUrl: null,
               ytLiveUrl: null,
+              egressId: null,
             }
           : {}),
       },
     });
 
     if (isEnding) {
+      if (current.egressId) {
+        await this.liveKitService.stopRecording(current.egressId);
+      }
+
       await this.liveKitService.sendRoomData(match.eventId, {
         type: 'MATCH_LIVE_UPDATE',
         matchId: match.id,
@@ -195,6 +200,18 @@ export class MatchService {
         },
       });
     });
+
+    if (updatedMatch.liveStatus === 'live' && target.liveStatus === 'not_started' && !target.egressId) {
+      try {
+        const { egressId, recordingUrl } = await this.liveKitService.startRecording(target.eventId, matchId);
+        await this.prisma.match.update({
+          where: { id: matchId },
+          data: { egressId, recordingUrl },
+        });
+      } catch (error) {
+        console.error('Failed to start LiveKit egress recording:', error);
+      }
+    }
 
     await this.liveKitService.sendRoomData(target.eventId, {
       type: 'MATCH_LIVE_UPDATE',

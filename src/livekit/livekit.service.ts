@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
-import { AccessToken, DataPacket_Kind, RoomServiceClient, WebhookReceiver } from 'livekit-server-sdk';
+import { AccessToken, DataPacket_Kind, EgressClient, EncodedFileOutput, RoomServiceClient, WebhookReceiver } from 'livekit-server-sdk';
 import { GenerateTokenDto } from './dto/generate-token.dto';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsageService } from '../usage/usage.service';
@@ -14,6 +14,11 @@ export class LiveKitService implements OnModuleInit {
     this.apiKey,
     this.apiSecret,
   );
+  private readonly egressClient = new EgressClient(
+    (process.env.LIVEKIT_URL ?? '').replace(/^ws/, 'http'),
+    this.apiKey,
+    this.apiSecret,
+  );
   private readonly webhookReceiver = new WebhookReceiver(
     process.env.LIVEKIT_API_KEY ?? '',
     process.env.LIVEKIT_API_SECRET ?? '',
@@ -22,7 +27,7 @@ export class LiveKitService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly usageService: UsageService,
-  ) {}
+  ) { }
 
   onModuleInit() {
     // Check every 60 seconds whether any active room has exceeded its usage limit
@@ -57,7 +62,7 @@ export class LiveKitService implements OnModuleInit {
         if (role !== 'broadcaster') {
           await this.roomService.removeParticipant(room, p.identity);
         }
-      } catch {}
+      } catch { }
     }
   }
 
@@ -148,5 +153,33 @@ export class LiveKitService implements OnModuleInit {
       if (err?.status === 404) return [];
       throw err;
     }
+  }
+
+  async startRecording(room: string, matchId: string): Promise<{ egressId: string; recordingUrl: string }> {
+    const filename = `${matchId}-${Date.now()}.mp4`;
+    const output = new EncodedFileOutput({
+      filepath: filename,
+      output: {
+        case: 's3',
+        value: {
+          accessKey: process.env.SUPABASE_S3_ACCESS_KEY ?? '',
+          secret: process.env.SUPABASE_S3_SECRET_KEY ?? '',
+          region: process.env.SUPABASE_S3_REGION ?? '',
+          bucket: process.env.SUPABASE_S3_BUCKET ?? '',
+          endpoint: process.env.SUPABASE_S3_ENDPOINT ?? '',
+          forcePathStyle: true,
+        },
+      },
+    });
+
+    const info = await this.egressClient.startRoomCompositeEgress(room, { file: output });
+    const recordingUrl = `${process.env.SUPABASE_S3_ENDPOINT}/${process.env.SUPABASE_S3_BUCKET}/${filename}`;
+    return { egressId: info.egressId, recordingUrl };
+  }
+
+  async stopRecording(egressId: string): Promise<void> {
+    try {
+      await this.egressClient.stopEgress(egressId);
+    } catch { }
   }
 }
