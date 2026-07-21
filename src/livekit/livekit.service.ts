@@ -155,8 +155,8 @@ export class LiveKitService implements OnModuleInit {
     }
   }
 
-  async startRecording(room: string, matchId: string): Promise<{ egressId: string; recordingUrl: string }> {
-    const filename = `${matchId}-${Date.now()}.mp4`;
+  async startParticipantRecording(room: string, identity: string, matchId: string): Promise<{ egressId: string; recordingUrl: string }> {
+    const filename = `${matchId}-${identity}-${Date.now()}.mp4`;
     const output = new EncodedFileOutput({
       filepath: filename,
       output: {
@@ -172,10 +172,11 @@ export class LiveKitService implements OnModuleInit {
       },
     });
 
-    const info = await this.egressClient.startRoomCompositeEgress(room, { file: output });
+    const info = await this.egressClient.startParticipantEgress(room, identity, { file: output });
     const recordingUrl = `${process.env.SUPABASE_S3_ENDPOINT}/${process.env.SUPABASE_S3_BUCKET}/${filename}`;
     return { egressId: info.egressId, recordingUrl };
   }
+
 
   async stopRecording(egressId: string): Promise<void> {
     try {

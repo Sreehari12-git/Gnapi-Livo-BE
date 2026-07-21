@@ -62,8 +62,34 @@ export class LiveKitController {
     if (event.event === 'participant_joined') {
       await this.usageService.onParticipantJoined(room, identity, role);
       console.log("Joined");
+      
+      const prisma = this.livekitService['prisma'];
+
+      if (role === 'capturer') {
+        const activeMatch = await prisma.match.findFirst({
+          where: {
+            eventId: room,
+            liveStatus: 'live',
+            liveCapturerIdentities: { has: identity },
+          },
+        });
+
+        if (activeMatch) {
+          try {
+            const { egressId, recordingUrl } = await this.livekitService.startParticipantRecording(room, identity, activeMatch.id);
+            await prisma.matchRecording.upsert({
+              where: { egressId },
+              update: { recordingUrl },
+              create: { matchId: activeMatch.id, capturerIdentity: identity, egressId, recordingUrl },
+            });
+          } catch (error) {
+            console.error(`Failed to start recording for joined capturer ${identity}:`, error);
+          }
+        }
+      }
+
       // If this event's admin is already over-limit, kick the new joiner immediately
-      const eventInfo = await this.livekitService['prisma'].eventInfo.findUnique({ where: { id: room } });
+      const eventInfo = await prisma.eventInfo.findUnique({ where: { id: room } });
       if (eventInfo) {
         const remaining = await this.usageService.getRemainingMinutes(eventInfo.createdBy);
         if (remaining <= 0) {

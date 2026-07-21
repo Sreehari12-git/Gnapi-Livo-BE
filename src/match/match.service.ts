@@ -34,7 +34,7 @@ export class MatchService {
   }
 
   async getMatch(id: string) {
-    const match = await this.prisma.match.findUnique({ where: { id } });
+    const match = await this.prisma.match.findUnique({ where: { id }, include: { recordings: true } });
     if (!match) {
       throw new NotFoundException('Match not found');
     }
@@ -59,15 +59,16 @@ export class MatchService {
               ytStreamId: null,
               ytWhipUrl: null,
               ytLiveUrl: null,
-              egressId: null,
             }
           : {}),
       },
     });
 
     if (isEnding) {
-      if (current.egressId) {
-        await this.liveKitService.stopRecording(current.egressId);
+      if (current.recordings && current.recordings.length > 0) {
+        for (const recording of current.recordings) {
+          await this.liveKitService.stopRecording(recording.egressId);
+        }
       }
 
       await this.liveKitService.sendRoomData(match.eventId, {
@@ -159,6 +160,9 @@ export class MatchService {
     const newCapturers = dto.liveCapturerIdentities ?? target.liveCapturerIdentities;
     const newCommentators = dto.liveCommentatorIdentities ?? target.liveCommentatorIdentities;
 
+    const addedCapturers = newCapturers.filter(c => !target.liveCapturerIdentities.includes(c));
+    const removedCapturers = target.liveCapturerIdentities.filter(c => !newCapturers.includes(c));
+
     const updatedMatch = await this.prisma.$transaction(async (tx) => {
       // Remove any newly-claimed identities from other matches (one-match-at-a-time rule)
       const claimedIds = [...newCapturers, ...newCommentators];
@@ -201,15 +205,21 @@ export class MatchService {
       });
     });
 
-    if (updatedMatch.liveStatus === 'live' && target.liveStatus === 'not_started' && !target.egressId) {
+    for (const identity of addedCapturers) {
       try {
-        const { egressId, recordingUrl } = await this.liveKitService.startRecording(target.eventId, matchId);
-        await this.prisma.match.update({
-          where: { id: matchId },
-          data: { egressId, recordingUrl },
+        const { egressId, recordingUrl } = await this.liveKitService.startParticipantRecording(target.eventId, identity, matchId);
+        await this.prisma.matchRecording.create({
+          data: { matchId, capturerIdentity: identity, egressId, recordingUrl },
         });
       } catch (error) {
-        console.error('Failed to start LiveKit egress recording:', error);
+        console.error(`Failed to start recording for ${identity}:`, error);
+      }
+    }
+
+    for (const identity of removedCapturers) {
+      const recording = target.recordings.find(r => r.capturerIdentity === identity);
+      if (recording) {
+        await this.liveKitService.stopRecording(recording.egressId);
       }
     }
 

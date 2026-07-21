@@ -103,12 +103,21 @@ model Match {
   ytBroadcastId           String?
   ytStreamId              String?
   ytWhipUrl               String?
-  ytLiveUrl               String?
-  egressId                String?
-  recordingUrl            String?
-  createdAt               DateTime  @default(now())
-  updatedAt               DateTime  @updatedAt
-  history                 MatchHistory?
+  ytLiveUrl                 String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+  history                   MatchHistory?
+  recordings                MatchRecording[]
+}
+
+model MatchRecording {
+  id               String   @id @default(uuid())
+  matchId          String
+  match            Match    @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  capturerIdentity String
+  egressId         String   @unique
+  recordingUrl     String
+  createdAt        DateTime @default(now())
 }
 
 model DeviceEventHistory {

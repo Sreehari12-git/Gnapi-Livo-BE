@@ -75,6 +75,11 @@ export class EventService {
         },
         matchHistories: {
           orderBy: { createdAt: 'desc' },
+          include: {
+            match: {
+              include: { recordings: true }
+            }
+          }
         },
       },
     });
