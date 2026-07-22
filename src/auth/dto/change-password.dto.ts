@@ -1,5 +1,5 @@
 export class ChangePasswordDto {
-  adminId!: number
-  currentPassword!: string
-  newPassword!: string
+  adminId!: number;
+  currentPassword!: string;
+  newPassword!: string;
 }

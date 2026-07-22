@@ -1,13 +1,21 @@
-import { Controller, Get, Query, Res, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Query,
+  Res,
+  BadRequestException,
+} from '@nestjs/common';
 import type { Response } from 'express';
 import { YoutubeService } from './youtube.service';
 import { MatchService } from '../match/match.service';
+import { LiveKitService } from '../livekit/livekit.service';
 
 @Controller('youtube')
 export class YoutubeController {
   constructor(
     private readonly youtubeService: YoutubeService,
     private readonly matchService: MatchService,
+    private readonly livekitService: LiveKitService,
   ) {}
 
   /** Frontend calls this to get the Google OAuth URL for a specific match */
@@ -51,10 +59,11 @@ export class YoutubeController {
 
       const tokens = await this.youtubeService.exchangeCode(code);
 
-      const { broadcastId, ytLiveUrl } = await this.youtubeService.createBroadcast(
-        tokens.access_token,
-        match.name,
-      );
+      const { broadcastId, ytLiveUrl } =
+        await this.youtubeService.createBroadcast(
+          tokens.access_token,
+          match.name,
+        );
       const { streamId, streamKey } = await this.youtubeService.createStream(
         tokens.access_token,
         match.name,
@@ -65,13 +74,27 @@ export class YoutubeController {
         streamId,
       );
 
-      // WHIP URL — capturer will push WebRTC directly here (free, no egress needed)
-      const ytWhipUrl = `https://whip.youtube.com/live/${streamKey}`;
+      // Start RTMP Egress directly from backend
+      const ytRtmpUrl = `rtmp://a.rtmp.youtube.com/live2/${streamKey}`;
+      let egressId = '';
+
+      if (match.liveCapturerIdentities?.length > 0 || match.liveCommentatorIdentities?.length > 0) {
+        try {
+          egressId = await this.livekitService.startYoutubeEgress(
+            match.eventId,
+            ytRtmpUrl,
+            match.liveCapturerIdentities[0],
+            match.liveCommentatorIdentities?.[0],
+          );
+        } catch (err) {
+          console.error('Failed to start egress on youtube connect', err);
+        }
+      }
 
       await this.matchService.saveYoutubeInfo(matchId, {
         ytBroadcastId: broadcastId,
         ytStreamId: streamId,
-        ytWhipUrl,
+        ytWhipUrl: `${egressId}|${ytRtmpUrl}`, // Repurposed to store the egress ID / RTMP URL
         ytLiveUrl,
       });
 

@@ -36,12 +36,12 @@ export class PaymentService {
       amount: plan.amount * 100,
       currency: 'INR',
       payment_capture: true,
-    } as any);
+    });
 
     await this.prisma.transaction.create({
       data: {
         adminId,
-        orderId: order.id as string,
+        orderId: order.id,
         amount: plan.amount * 100,
         currency: 'INR',
         status: 'pending',
@@ -94,7 +94,9 @@ export class PaymentService {
         .update({ where: { orderId }, data: { status: 'failed' } })
         .catch(() => {});
     }
-    await this.prisma.adminLogin.delete({ where: { id: adminId } }).catch(() => {});
+    await this.prisma.adminLogin
+      .delete({ where: { id: adminId } })
+      .catch(() => {});
     return { success: true };
   }
 

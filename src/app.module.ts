@@ -11,7 +11,15 @@ import { PaymentModule } from './payment/payment.module';
 import { UsageModule } from './usage/usage.module';
 
 @Module({
-  imports: [AuthModule, EventModule, LiveKitModule, MatchModule, YoutubeModule, PaymentModule, UsageModule],
+  imports: [
+    AuthModule,
+    EventModule,
+    LiveKitModule,
+    MatchModule,
+    YoutubeModule,
+    PaymentModule,
+    UsageModule,
+  ],
   controllers: [AppController],
   providers: [AppService],
 })

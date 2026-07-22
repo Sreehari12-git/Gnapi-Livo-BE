@@ -1,4 +1,11 @@
-import { Controller, Get, Post, Body, Param, BadRequestException } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Param,
+  BadRequestException,
+} from '@nestjs/common';
 import { PaymentService } from './payment.service';
 
 @Controller('payment')
@@ -31,22 +38,22 @@ export class PaymentController {
     @Body('paymentId') paymentId: string,
     @Body('signature') signature: string,
   ) {
-    return this.paymentService.verifyAndActivate(Number(adminId), Number(planId), orderId, paymentId, signature);
+    return this.paymentService.verifyAndActivate(
+      Number(adminId),
+      Number(planId),
+      orderId,
+      paymentId,
+      signature,
+    );
   }
 
   @Post('fail')
-  fail(
-    @Body('adminId') adminId: number,
-    @Body('orderId') orderId: string,
-  ) {
+  fail(@Body('adminId') adminId: number, @Body('orderId') orderId: string) {
     return this.paymentService.handleFailure(Number(adminId), orderId);
   }
 
   @Post('free')
-  free(
-    @Body('adminId') adminId: number,
-    @Body('planId') planId: number,
-  ) {
+  free(@Body('adminId') adminId: number, @Body('planId') planId: number) {
     return this.paymentService.activateFree(Number(adminId), Number(planId));
   }
 }

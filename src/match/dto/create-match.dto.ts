@@ -1,5 +1,5 @@
 export class CreateMatchDto {
-    eventId !: string
-    sport !: string
-    name !: string
+  eventId!: string;
+  sport!: string;
+  name!: string;
 }

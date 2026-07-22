@@ -15,7 +15,9 @@ export class MatchService {
   async createMatch(dto: CreateMatchDto) {
     const { eventId, sport, name } = dto;
 
-    const event = await this.prisma.eventInfo.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.eventInfo.findUnique({
+      where: { id: eventId },
+    });
     if (!event) {
       throw new NotFoundException('Event not found');
     }
@@ -34,7 +36,10 @@ export class MatchService {
   }
 
   async getMatch(id: string) {
-    const match = await this.prisma.match.findUnique({ where: { id }, include: { recordings: true } });
+    const match = await this.prisma.match.findUnique({
+      where: { id },
+      include: { recordings: true },
+    });
     if (!match) {
       throw new NotFoundException('Match not found');
     }
@@ -68,6 +73,13 @@ export class MatchService {
       if (current.recordings && current.recordings.length > 0) {
         for (const recording of current.recordings) {
           await this.liveKitService.stopRecording(recording.egressId);
+        }
+      }
+
+      if (current.ytWhipUrl) {
+        const parts = current.ytWhipUrl.split('|');
+        if (parts.length > 1 && parts[0]) {
+          await this.liveKitService.stopYoutubeEgress(parts[0]);
         }
       }
 
@@ -144,6 +156,13 @@ export class MatchService {
       },
     });
 
+    if (match.ytWhipUrl) {
+      const parts = match.ytWhipUrl.split('|');
+      if (parts.length > 1 && parts[0]) {
+        await this.liveKitService.stopYoutubeEgress(parts[0]);
+      }
+    }
+
     await this.liveKitService.sendRoomData(match.eventId, {
       type: 'MATCH_LIVE_UPDATE',
       matchId: match.id,
@@ -157,11 +176,17 @@ export class MatchService {
 
   async setLiveSelection(matchId: string, dto: SetMatchLiveSelectionDto) {
     const target = await this.getMatch(matchId);
-    const newCapturers = dto.liveCapturerIdentities ?? target.liveCapturerIdentities;
-    const newCommentators = dto.liveCommentatorIdentities ?? target.liveCommentatorIdentities;
+    const newCapturers =
+      dto.liveCapturerIdentities ?? target.liveCapturerIdentities;
+    const newCommentators =
+      dto.liveCommentatorIdentities ?? target.liveCommentatorIdentities;
 
-    const addedCapturers = newCapturers.filter(c => !target.liveCapturerIdentities.includes(c));
-    const removedCapturers = target.liveCapturerIdentities.filter(c => !newCapturers.includes(c));
+    const addedCapturers = newCapturers.filter(
+      (c) => !target.liveCapturerIdentities.includes(c),
+    );
+    const removedCapturers = target.liveCapturerIdentities.filter(
+      (c) => !newCapturers.includes(c),
+    );
 
     const updatedMatch = await this.prisma.$transaction(async (tx) => {
       // Remove any newly-claimed identities from other matches (one-match-at-a-time rule)
@@ -185,9 +210,10 @@ export class MatchService {
               liveCapturerIdentities: conflict.liveCapturerIdentities.filter(
                 (id) => !claimedIds.includes(id),
               ),
-              liveCommentatorIdentities: conflict.liveCommentatorIdentities.filter(
-                (id) => !claimedIds.includes(id),
-              ),
+              liveCommentatorIdentities:
+                conflict.liveCommentatorIdentities.filter(
+                  (id) => !claimedIds.includes(id),
+                ),
             },
           });
         }
@@ -200,14 +226,21 @@ export class MatchService {
         data: {
           liveCapturerIdentities: newCapturers,
           liveCommentatorIdentities: newCommentators,
-          ...(goesLive && target.liveStatus === 'not_started' ? { liveStatus: 'live' } : {}),
+          ...(goesLive && target.liveStatus === 'not_started'
+            ? { liveStatus: 'live' }
+            : {}),
         },
       });
     });
 
     for (const identity of addedCapturers) {
       try {
-        const { egressId, recordingUrl } = await this.liveKitService.startParticipantRecording(target.eventId, identity, matchId);
+        const { egressId, recordingUrl } =
+          await this.liveKitService.startParticipantRecording(
+            target.eventId,
+            identity,
+            matchId,
+          );
         await this.prisma.matchRecording.create({
           data: { matchId, capturerIdentity: identity, egressId, recordingUrl },
         });
@@ -217,9 +250,50 @@ export class MatchService {
     }
 
     for (const identity of removedCapturers) {
-      const recording = target.recordings.find(r => r.capturerIdentity === identity);
+      const recording = target.recordings.find(
+        (r) => r.capturerIdentity === identity,
+      );
       if (recording) {
         await this.liveKitService.stopRecording(recording.egressId);
+      }
+    }
+
+    let finalYtWhipUrl = updatedMatch.ytWhipUrl;
+
+    // If YouTube is active and identities changed, restart Egress
+    if (target.ytWhipUrl && target.ytWhipUrl.includes('|')) {
+      const changed =
+        JSON.stringify(newCapturers) !== JSON.stringify(target.liveCapturerIdentities) ||
+        JSON.stringify(newCommentators) !== JSON.stringify(target.liveCommentatorIdentities);
+
+      if (changed) {
+        const parts = target.ytWhipUrl.split('|');
+        const oldEgressId = parts[0];
+        const rtmpUrl = parts[1];
+
+        if (oldEgressId) {
+          await this.liveKitService.stopYoutubeEgress(oldEgressId);
+        }
+
+        let newEgressId = '';
+        if (newCapturers.length > 0 || newCommentators.length > 0) {
+          try {
+            newEgressId = await this.liveKitService.startYoutubeEgress(
+              target.eventId,
+              rtmpUrl,
+              newCapturers[0],
+              newCommentators[0]
+            );
+          } catch (err) {
+            console.error('Failed to restart egress on selection change', err);
+          }
+        }
+
+        finalYtWhipUrl = `${newEgressId}|${rtmpUrl}`;
+        await this.prisma.match.update({
+          where: { id: matchId },
+          data: { ytWhipUrl: finalYtWhipUrl },
+        });
       }
     }
 
@@ -228,7 +302,7 @@ export class MatchService {
       matchId: updatedMatch.id,
       liveCapturerIdentities: updatedMatch.liveCapturerIdentities,
       liveCommentatorIdentities: updatedMatch.liveCommentatorIdentities,
-      ytWhipUrl: updatedMatch.ytWhipUrl,
+      ytWhipUrl: finalYtWhipUrl,
     });
 
     return updatedMatch;

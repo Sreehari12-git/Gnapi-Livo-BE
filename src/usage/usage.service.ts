@@ -5,14 +5,31 @@ import { PrismaService } from '../prisma/prisma.service';
 export class UsageService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async onParticipantJoined(room: string, identity: string, role: string): Promise<void> {
-    const event = await this.prisma.eventInfo.findUnique({ where: { id: room } });
+  async onParticipantJoined(
+    room: string,
+    identity: string,
+    role: string,
+  ): Promise<void> {
+    const event = await this.prisma.eventInfo.findUnique({
+      where: { id: room },
+    });
     if (!event) return;
 
     await this.prisma.usageSession.upsert({
       where: { room_identity: { room, identity } },
-      create: { adminId: event.createdBy, room, identity, role, startedAt: new Date() },
-      update: { endedAt: null, durationMinutes: null, startedAt: new Date(), role },
+      create: {
+        adminId: event.createdBy,
+        room,
+        identity,
+        role,
+        startedAt: new Date(),
+      },
+      update: {
+        endedAt: null,
+        durationMinutes: null,
+        startedAt: new Date(),
+        role,
+      },
     });
   }
 
@@ -23,7 +40,8 @@ export class UsageService {
     if (!session || session.endedAt) return;
 
     const endedAt = new Date();
-    const durationMinutes = (endedAt.getTime() - session.startedAt.getTime()) / 60000;
+    const durationMinutes =
+      (endedAt.getTime() - session.startedAt.getTime()) / 60000;
 
     await this.prisma.$transaction([
       this.prisma.usageSession.update({
@@ -55,7 +73,11 @@ export class UsageService {
       0,
     );
 
-    return subscription.plan.usageLimitMinutes - subscription.usedMinutes - activeMinutes;
+    return (
+      subscription.plan.usageLimitMinutes -
+      subscription.usedMinutes -
+      activeMinutes
+    );
   }
 
   async getUsageStats(adminId: number): Promise<{
@@ -67,7 +89,8 @@ export class UsageService {
       where: { adminId },
       include: { plan: true },
     });
-    if (!subscription) return { usedMinutes: 0, limitMinutes: 0, remainingMinutes: 0 };
+    if (!subscription)
+      return { usedMinutes: 0, limitMinutes: 0, remainingMinutes: 0 };
 
     const remaining = await this.getRemainingMinutes(adminId);
     return {

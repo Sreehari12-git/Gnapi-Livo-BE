@@ -1,4 +1,12 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+} from '@nestjs/common';
 import { MatchService } from './match.service';
 import { CreateMatchDto } from './dto/create-match.dto';
 import { UpdateMatchDto } from './dto/update-match.dto';
@@ -39,7 +47,10 @@ export class MatchController {
   }
 
   @Post(':id/live-selection')
-  async setLiveSelection(@Param('id') id: string, @Body() dto: SetMatchLiveSelectionDto) {
+  async setLiveSelection(
+    @Param('id') id: string,
+    @Body() dto: SetMatchLiveSelectionDto,
+  ) {
     return this.matchService.setLiveSelection(id, dto);
   }
 

@@ -1,4 +1,4 @@
 export class ValidateSessionDto {
-    adminId !: number
-    eventId !:string
+  adminId!: number;
+  eventId!: string;
 }

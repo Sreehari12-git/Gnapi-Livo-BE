@@ -1,4 +1,14 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { EventService } from './event.service';
 import { CreateEventDto } from './dto/create.event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
@@ -16,7 +26,7 @@ export class EventController {
 
   @Get('all')
   async getAllEvents() {
-   return this.eventService.getAllEvents();
+    return this.eventService.getAllEvents();
   }
 
   @Get('admin/:adminId')
@@ -30,9 +40,11 @@ export class EventController {
   }
 
   @Patch(':id')
-  async updateEvent(@Param('id') id: string,
-  @Body() updateEventDto: UpdateEventDto) {
-   return this.eventService.updateEvent(id, updateEventDto);
+  async updateEvent(
+    @Param('id') id: string,
+    @Body() updateEventDto: UpdateEventDto,
+  ) {
+    return this.eventService.updateEvent(id, updateEventDto);
   }
 
   @Delete(':id')
@@ -41,7 +53,7 @@ export class EventController {
   }
 
   @Post('validate')
-  async validateSession(@Body() validateSessionDto: ValidateSessionDto,) {
+  async validateSession(@Body() validateSessionDto: ValidateSessionDto) {
     return this.eventService.validateSession(validateSessionDto);
   }
 

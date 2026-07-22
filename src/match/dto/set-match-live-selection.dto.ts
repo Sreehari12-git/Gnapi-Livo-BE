@@ -1,4 +1,4 @@
 export class SetMatchLiveSelectionDto {
-  liveCapturerIdentities?: string[]
-  liveCommentatorIdentities?: string[]
+  liveCapturerIdentities?: string[];
+  liveCommentatorIdentities?: string[];
 }

@@ -8,7 +8,7 @@ import { SaveDeviceEventHistoryDto } from './dto/device-event-history.dto';
 
 @Injectable()
 export class EventService {
-  constructor(private readonly prisma: PrismaService) { }
+  constructor(private readonly prisma: PrismaService) {}
 
   async createEvent(createEventDto: CreateEventDto) {
     const { name, adminId, category, sport } = createEventDto;
@@ -19,8 +19,8 @@ export class EventService {
         category,
         sport: sport ?? null,
         creator: {
-          connect: { id: adminId }
-        }
+          connect: { id: adminId },
+        },
       },
     });
 
@@ -77,9 +77,9 @@ export class EventService {
           orderBy: { createdAt: 'desc' },
           include: {
             match: {
-              include: { recordings: true }
-            }
-          }
+              include: { recordings: true },
+            },
+          },
         },
       },
     });
@@ -107,8 +107,12 @@ export class EventService {
       where: { id },
       data: {
         ...(updateEventDto.name !== undefined && { name: updateEventDto.name }),
-        ...(updateEventDto.category !== undefined && { category: updateEventDto.category }),
-        ...(updateEventDto.sport !== undefined && { sport: updateEventDto.sport }),
+        ...(updateEventDto.category !== undefined && {
+          category: updateEventDto.category,
+        }),
+        ...(updateEventDto.sport !== undefined && {
+          sport: updateEventDto.sport,
+        }),
       },
     });
 
@@ -131,11 +135,12 @@ export class EventService {
     return { message: 'Event deleted successfully' };
   }
 
-
   async saveDeviceEventHistory(dto: SaveDeviceEventHistoryDto) {
     const { deviceId, eventId } = dto;
 
-    const event = await this.prisma.eventInfo.findUnique({ where: { id: eventId } });
+    const event = await this.prisma.eventInfo.findUnique({
+      where: { id: eventId },
+    });
     if (!event) throw new NotFoundException('Event not found');
 
     await this.prisma.deviceEventHistory.upsert({
@@ -163,7 +168,7 @@ export class EventService {
       },
     });
 
-    return history.map(h => ({
+    return history.map((h) => ({
       eventId: h.eventId,
       eventName: h.event.name,
       category: h.event.category,
@@ -183,9 +188,7 @@ export class EventService {
     });
 
     if (!event) {
-      throw new NotFoundException(
-        'Admin or Event not found'
-      );
+      throw new NotFoundException('Admin or Event not found');
     }
 
     return {

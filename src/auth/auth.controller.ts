@@ -25,9 +25,7 @@ export class AuthController {
   }
 
   @Post('control-panel/register')
-  controlPanelRegister(
-    @Body() registerDto: ControlPanelRegisterDto,
-  ) {
+  controlPanelRegister(@Body() registerDto: ControlPanelRegisterDto) {
     return this.authService.controlPanelRegister(registerDto);
   }
 
@@ -36,4 +34,3 @@ export class AuthController {
     return this.authService.controlPanelLogin(loginDto);
   }
 }
-

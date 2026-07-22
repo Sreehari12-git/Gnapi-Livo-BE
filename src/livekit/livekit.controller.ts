@@ -38,7 +38,9 @@ export class LiveKitController {
   ) {
     console.log('[WEBHOOK] hit — authHeader:', !!authHeader);
     // express.raw() stores the buffer in req.body; fall back to req.rawBody
-    const raw: Buffer | string | undefined = Buffer.isBuffer(req.body) ? req.body : req.rawBody;
+    const raw: Buffer | string | undefined = Buffer.isBuffer(req.body)
+      ? req.body
+      : req.rawBody;
     const body = raw?.toString() ?? '';
     console.log('[WEBHOOK] body length:', body.length);
     let event: Awaited<ReturnType<typeof this.livekitService.receiveWebhook>>;
@@ -61,8 +63,8 @@ export class LiveKitController {
 
     if (event.event === 'participant_joined') {
       await this.usageService.onParticipantJoined(room, identity, role);
-      console.log("Joined");
-      
+      console.log('Joined');
+
       const prisma = this.livekitService['prisma'];
 
       if (role === 'capturer') {
@@ -76,33 +78,54 @@ export class LiveKitController {
 
         if (activeMatch) {
           try {
-            const { egressId, recordingUrl } = await this.livekitService.startParticipantRecording(room, identity, activeMatch.id);
+            const { egressId, recordingUrl } =
+              await this.livekitService.startParticipantRecording(
+                room,
+                identity,
+                activeMatch.id,
+              );
             await prisma.matchRecording.upsert({
               where: { egressId },
               update: { recordingUrl },
-              create: { matchId: activeMatch.id, capturerIdentity: identity, egressId, recordingUrl },
+              create: {
+                matchId: activeMatch.id,
+                capturerIdentity: identity,
+                egressId,
+                recordingUrl,
+              },
             });
           } catch (error) {
-            console.error(`Failed to start recording for joined capturer ${identity}:`, error);
+            console.error(
+              `Failed to start recording for joined capturer ${identity}:`,
+              error,
+            );
           }
         }
       }
 
       // If this event's admin is already over-limit, kick the new joiner immediately
-      const eventInfo = await prisma.eventInfo.findUnique({ where: { id: room } });
+      const eventInfo = await prisma.eventInfo.findUnique({
+        where: { id: room },
+      });
       if (eventInfo) {
-        const remaining = await this.usageService.getRemainingMinutes(eventInfo.createdBy);
+        const remaining = await this.usageService.getRemainingMinutes(
+          eventInfo.createdBy,
+        );
         if (remaining <= 0) {
           await this.livekitService.enforceUsageLimitForRoom(room);
         }
       }
     } else if (event.event === 'participant_left') {
       await this.usageService.onParticipantLeft(room, identity);
-      console.log("Left");
+      console.log('Left');
       // After recording the departed session, check if remaining just crossed 0
-      const eventInfo = await this.livekitService['prisma'].eventInfo.findUnique({ where: { id: room } });
+      const eventInfo = await this.livekitService[
+        'prisma'
+      ].eventInfo.findUnique({ where: { id: room } });
       if (eventInfo) {
-        const remaining = await this.usageService.getRemainingMinutes(eventInfo.createdBy);
+        const remaining = await this.usageService.getRemainingMinutes(
+          eventInfo.createdBy,
+        );
         if (remaining <= 0) {
           await this.livekitService.enforceUsageLimitForRoom(room);
         }

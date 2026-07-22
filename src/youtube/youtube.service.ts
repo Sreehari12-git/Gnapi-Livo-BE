@@ -55,7 +55,10 @@ export class YoutubeService {
     return res.json() as Promise<TokenResponse>;
   }
 
-  async createBroadcast(accessToken: string, title: string): Promise<BroadcastResult> {
+  async createBroadcast(
+    accessToken: string,
+    title: string,
+  ): Promise<BroadcastResult> {
     const scheduledStartTime = new Date(Date.now() + 30_000).toISOString();
     const res = await fetch(
       'https://www.googleapis.com/youtube/v3/liveBroadcasts?part=snippet,status,contentDetails',
@@ -91,7 +94,10 @@ export class YoutubeService {
     };
   }
 
-  async createStream(accessToken: string, title: string): Promise<StreamResult> {
+  async createStream(
+    accessToken: string,
+    title: string,
+  ): Promise<StreamResult> {
     const res = await fetch(
       'https://www.googleapis.com/youtube/v3/liveStreams?part=snippet,cdn,status',
       {

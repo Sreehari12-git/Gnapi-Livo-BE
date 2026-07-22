@@ -1,5 +1,5 @@
 export class UpdateEventDto {
-    name?: string
-    category?: string
-    sport?: string
+  name?: string;
+  category?: string;
+  sport?: string;
 }
